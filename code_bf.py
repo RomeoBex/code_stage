@@ -1,13 +1,15 @@
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from matplotlib.animation import FFMpegWriter
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
- 
+
 # Paramètres
 num_particles_large = 200
 box_size = 100
-steps = 200
-step_size_large = 0.3
+steps = 4000
+step_scale = 1.0  # Intensité du mouvement brownien
 
 # Sous-volume (champ de la caméra)
 subvol_origin = np.array([40, 40, 40])
@@ -17,9 +19,6 @@ subvol_size = 20
 np.random.seed(42)
 positions_large = np.random.rand(num_particles_large, 3) * box_size
 
-# Vitesses initiales
-vel_large = (np.random.rand(num_particles_large, 3) - 0.5) * 2 * step_size_large
-
 # Figure
 fig = plt.figure(figsize=(8, 8))
 ax = fig.add_subplot(111, projection='3d')
@@ -27,10 +26,10 @@ ax.set_xlim(0, box_size)
 ax.set_ylim(0, box_size)
 ax.set_zlim(0, box_size)
 
-# Particules (uniquement les grandes bleues)
+# Particules
 scat_large = ax.scatter(*positions_large.T, s=10, c='blue', label="Particules")
 
-# Sous-volume (boîte transparente rouge)
+# Sous-volume (boîte rouge semi-transparente)
 def draw_subvolume():
     x0, y0, z0 = subvol_origin
     x1, y1, z1 = subvol_origin + subvol_size
@@ -59,26 +58,31 @@ def draw_subvolume():
 
 draw_subvolume()
 
-# Animation
+# Animation avec mouvement brownien
 def update(frame):
-    global positions_large, vel_large
+    global positions_large
 
-    positions_large += vel_large
+    # Déplacement brownien : pas aléatoire à chaque étape
+    random_steps = (np.random.rand(num_particles_large, 3) - 0.5) * 2 * step_scale
+    positions_large += random_steps
 
+    # Rebonds sur les parois
     for i in range(3):
-        mask_large = (positions_large[:, i] <= 0) | (positions_large[:, i] >= box_size)
-        vel_large[mask_large, i] *= -1
-        positions_large = np.clip(positions_large, 0, box_size)
+        mask_low = positions_large[:, i] < 0
+        mask_high = positions_large[:, i] > box_size
+        positions_large[mask_low, i] = -positions_large[mask_low, i]
+        positions_large[mask_high, i] = 2 * box_size - positions_large[mask_high, i]
 
+    # Mise à jour de l'affichage
     scat_large._offsets3d = tuple(positions_large.T)
     return scat_large,
 
+# Création de l'animation
 ani = animation.FuncAnimation(fig, update, frames=steps, interval=30, blit=False)
 
-# Sauvegarde de la vidéo
-ani.save("mouvement_brownien_3d_bleu.mp4", writer='ffmpeg', fps=30)
-# ani.save("mouvement_brownien_3d_bleu.gif", writer=animation.PillowWriter(fps=30))
-
+# Enregistrement de l'animation en vidéo MP4
+ani.save("mouvement_brownien_final.mp4", writer=FFMpegWriter(fps=30))
 plt.close()
-print("✅ Vidéo générée : mouvement_brownien_3d_bleu.mp4")
+
+print("✅ Vidéo enregistrée sous : mouvement_brownien_final.mp4")
 
